@@ -119,3 +119,6 @@ AdamOptimizer 로 바꿔줘야 합니다.
  epsilon=1e-6
  )
 ```
+
+### partner 
+https://github.com/Gyunstorys
