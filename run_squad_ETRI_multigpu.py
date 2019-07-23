@@ -20,7 +20,7 @@ from __future__ import division
 from __future__ import print_function
 
 
-import re 
+import re
 import urllib3
 from urllib.parse import urlencode
 import collections
@@ -36,10 +36,10 @@ import tensorflow as tf
 import numpy
 import sys
 import logging
-from pprint import pprint 
-logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
-					datefmt = '%m/%d/%Y %H:%M:%S',
-					level = logging.INFO)
+from pprint import pprint
+logging.basicConfig(filename= "answer_diff.log",format='%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                    datefmt='%m/%d/%Y %H:%M:%S',
+                    level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
@@ -102,7 +102,8 @@ flags.DEFINE_integer("train_batch_size", 32, "Total batch size for training.")
 flags.DEFINE_integer("predict_batch_size", 8,
                      "Total batch size for predictions.")
 
-flags.DEFINE_float("learning_rate", 5e-5, "The initial learning rate for Adam.")
+flags.DEFINE_float("learning_rate", 5e-5,
+                   "The initial learning rate for Adam.")
 
 flags.DEFINE_float("num_train_epochs", 3.0,
                    "Total number of training epochs to perform.")
@@ -167,9 +168,10 @@ flags.DEFINE_float(
 flags.DEFINE_integer("num_gpus", 8, "Total number of GPUs to use.")
 flags.DEFINE_bool("multi_worker", False, "Multi-worker training.")
 
-
+f = open("diff_answer","w")
 class SquadExample(object):
 	"""A single training/test example for the Squad dataset."""
+
 
 	def __init__(self,
               qas_id,
@@ -205,9 +207,12 @@ class SquadExample(object):
 			pred_answer = self.p_raw_bytes[begin_pos:end_pos].decode().strip()
 			if self.a_raw_text != pred_answer:
 				logger.info("[diff answer span] %s\t%s" % (self.a_raw_text, pred_answer))
+				f.write(self.a_raw_text+"\t"+ pred_answer+"\n")
+      
 
 	def __str__(self):
 		return self.__repr__()
+
 
 	def __repr__(self):
 		s = ""
@@ -260,39 +265,40 @@ def mapping_answer_korquad(p_json, rep_p, answer_text, answer_start, answer_end=
 	byte_answer_start = len(rep_p['text'][:answer_start].encode())
 	byte_answer_end = len(rep_p['text'][:answer_end].encode())
 
-	base_morp_id = 0#해당 sentence shard 
+	base_morp_id = 0  # 해당 sentence shard
 	begin_morp_id = end_morp_id = -1
 	for sentence in p_json:
-    #여기없다 다음문장으로
+	    #여기없다 다음문장으로
 		if byte_answer_start > sentence['morp'][-1]['position'] and byte_answer_end > sentence['morp'][-1]['position']:
 			base_morp_id += len(sentence['morp'])
 			continue
-    #정답이 어떤 morph id  인지 찾아낸다. begin_morp_id 에 저장 
-		if begin_morp_id == -1: #begin_morp_id 아직 안정해졌으면 
+    #정답이 어떤 morph id  인지 찾아낸다. begin_morp_id 에 저장
+		if begin_morp_id == -1:  # begin_morp_id 아직 안정해졌으면
 			for morp_i, morp in enumerate(sentence['morp']):
-        #해당  morph 가 byte_answer_start  이면 
+			        #해당  morph 가 byte_answer_start  이면
 				if morp['position'] == byte_answer_start:
+
 					begin_morp_id = base_morp_id + morp_i
 					break
         # morph position 이 해당 byte_answer_start 앞에 있다.  begin안맞음
-				elif morp['position'] < byte_answer_start and morp_i+1 < len(sentence['morp']) and byte_answer_start < sentence['morp'][morp_i+1]['position']:
+				elif morp['position'] < byte_answer_start and morp_i < len(sentence['morp'])-1 and byte_answer_start < sentence['morp'][morp_i+1]['position']:
 					begin_morp_id = base_morp_id + morp_i
 					logger.info('[begin not exact match] %s\t->\t%s' %
 					            (answer_text, morp['lemma']))
 					break
-        # morph position 이 해당 byte_answer_start 를 지나갔다 
+        # morph position 이 해당 byte_answer_start 를 지나갔다
 				elif morp['position'] > byte_answer_start:
 					begin_morp_id = base_morp_id + morp_i
 					logger.info('[begin error] %s\t->\t%s' % (answer_text, morp['lemma']))
 					break
-    #begin_morp_id 는 찾았는데 end_morp_id를 안찾았을때 
+    # end_morp_id를 찾자!
 		if begin_morp_id != -1 and end_morp_id == -1 and byte_answer_end <= sentence['morp'][-1]['position']+len(sentence['morp'][-1]['lemma'].encode()):
 			for morp_i in range(len(sentence['morp'])-1, -1, -1):
 				morp = sentence['morp'][morp_i]
-				if morp['position'] == byte_answer_end: # 이럴수가있나? 2개의 morph가 똑같은 position 일때 ? 
+				if morp['position'] == byte_answer_end:  # "저는 이도명이라고" 에서 '이도명'을 찾을때 이도명 뒤 '이라고 같은게 바로 붙어있을때 
 					end_morp_id = base_morp_id + morp_i - 1
 					break
-				elif morp['position'] < byte_answer_end and byte_answer_end <= morp['position']+len(morp['lemma'].encode()):
+				elif morp['position'] < byte_answer_end and morp['position']+len(morp['lemma'].encode()) >= byte_answer_end :
 					end_morp_id = base_morp_id + morp_i
 					break
 				elif morp['position'] < byte_answer_end:
@@ -309,7 +315,7 @@ def mapping_answer_korquad(p_json, rep_p, answer_text, answer_start, answer_end=
 	begin_pos = rep_p['position_list'][begin_morp_id]
 	end_pos = len(p_text_bytes)
 	if end_morp_id+1 < len(rep_p['position_list']):
-	  end_pos = rep_p['position_list'][end_morp_id+1] # 어짜피 end_pos 는 안 들어감
+	  end_pos = rep_p['position_list'][end_morp_id+1]  # 어짜피 end_pos 는 안 들어감
 	pred_text = p_text_bytes[begin_pos: end_pos].decode().strip()
 	if answer_text != pred_text:
 		logger.info('[check morp index] %s\t%s' % (answer_text, pred_text))
@@ -317,9 +323,9 @@ def mapping_answer_korquad(p_json, rep_p, answer_text, answer_start, answer_end=
 	return {'begin_morp': begin_morp_id, 'end_morp': end_morp_id, 'text': answer_text}
 
 
-def do_lang ( text ) :
+def do_lang(text):
 	openApiURL = "http://10.100.1.121:8080/api/morpheme/etri"
-	 
+
 	http = urllib3.PoolManager()
 	response = http.request("POST", openApiURL, fields={'targetText': text})
 
@@ -327,11 +333,11 @@ def do_lang ( text ) :
 
 
 def get_morphs(p_json):
-  text=''
-  morp_list=[]
-  position_list =[]
+  text = ''
+  morp_list = []
+  position_list = []
   for sent in p_json:
-      
+
     text = sent['text']
 
     for morp in sent['morp']:
@@ -340,8 +346,7 @@ def get_morphs(p_json):
   #pprint(text)
   #pprint(morp_list)
   #pprint("############")
-  return { 'text': text, 'morp_list':morp_list, 'position_list':position_list }
-
+  return {'text': text, 'morp_list': morp_list, 'position_list': position_list}
 
 
 def read_squad_examples_and_do_lang(input_file, is_training):
@@ -368,30 +373,33 @@ def read_squad_examples_and_do_lang(input_file, is_training):
         question_morp = do_lang(question_text)
         q_json = json.loads(question_morp)['sentences']
         rep_q = get_morphs(q_json)
-        
+
         rep_a = {}
         if is_training:
             #our json starts from 'sentence'
-            rep_a = mapping_answer_korquad(p_json, rep_p, qa['answers'][0]['text'], qa['answers'][0]['answer_start'])
+            rep_a = mapping_answer_korquad(
+            	p_json, rep_p, qa['answers'][0]['text'], qa['answers'][0]['answer_start'])
             #print(rep_a)
-            
-        pqa_list.append( {'id':qas_id, 'passage':rep_p, 'question':rep_q, 'answer':rep_a} )
-     
+
+        pqa_list.append({'id': qas_id, 'passage': rep_p,
+                         'question': rep_q, 'answer': rep_a})
+
   return read_squad_examples(pqa_list, is_training)
-        
+
+
 def read_squad_examples(pqa_list, is_training):
-  examples=[]
+  examples = []
   for pqa in pqa_list:
-    a_raw_text = None 
-    a_morp_token = None 
-    a_begin_morp = None 
+    a_raw_text = None
+    a_morp_token = None
+    a_begin_morp = None
     a_end_morp = None
 
     if is_training:
       a_raw_text = pqa['answer']['text']
       a_begin_morp = pqa['answer']['begin_morp']
       a_end_morp = pqa['answer']['end_morp']
-      a_morp_token = pqa['passage']['morp_list'][a_begin_morp : a_end_morp+1]
+      a_morp_token = pqa['passage']['morp_list'][a_begin_morp: a_end_morp+1]
 
     example = SquadExample(
         qas_id=pqa['id'],
@@ -420,7 +428,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
     query_tokens = []
     for q_morp in example.q_morp_token:
-      query_tokens.extend( tokenizer.tokenize(q_morp) )
+      query_tokens.extend(tokenizer.tokenize(q_morp))
 
     if len(query_tokens) > max_query_length:
       query_tokens = query_tokens[0:max_query_length]
@@ -443,7 +451,6 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         tok_end_position = orig_to_tok_index[example.a_end_morp + 1] - 1
       else:
         tok_end_position = orig_to_tok_index[-1]
-
 
     # The -3 accounts for [CLS], [SEP] and [SEP]
     max_tokens_for_doc = max_seq_length - len(query_tokens) - 3
@@ -507,7 +514,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
 
       start_position = None
       end_position = None
-      if is_training :
+      if is_training:
         # For training, if our document chunk does not contain an annotation
         # we throw it out, since there is nothing to predict.
         doc_start = doc_span.start
@@ -520,8 +527,6 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         start_position = tok_start_position - doc_start + doc_offset
         end_position = tok_end_position - doc_start + doc_offset
 
-
-
       if example_index < 10:
         tf.logging.info("*** Example ***")
         tf.logging.info("unique_id: %s" % (unique_id))
@@ -533,7 +538,8 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
         tf.logging.info("token_is_max_context: %s" % " ".join([
             "%d:%s" % (x, y) for (x, y) in token_is_max_context.items()
         ]))
-        tf.logging.info("input_ids: %s" % " ".join([str(x) for x in input_ids]))
+        tf.logging.info("input_ids: %s" %
+                        " ".join([str(x) for x in input_ids]))
         tf.logging.info(
             "input_mask: %s" % " ".join([str(x) for x in input_mask]))
         tf.logging.info(
@@ -546,7 +552,7 @@ def convert_examples_to_features(examples, tokenizer, max_seq_length,
           tf.logging.info(
               "answer: %s" % (answer_text))
           tf.logging.info("orig_answer: %s" % (example.a_raw_text))
-      
+
       feature = InputFeatures(
           unique_id=unique_id,
           example_index=example_index,
@@ -714,7 +720,7 @@ def model_fn_builder(bert_config, init_checkpoint, learning_rate,
     scaffold_fn = None
     if init_checkpoint:
       (assignment_map, initialized_variable_names
-      ) = modeling.get_assignment_map_from_checkpoint(tvars, init_checkpoint)
+       ) = modeling.get_assignment_map_from_checkpoint(tvars, init_checkpoint)
       if use_tpu:
 
         def tpu_scaffold():
@@ -946,7 +952,6 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
               start_logit=pred.start_logit,
               end_logit=pred.end_logit))
 
-
     # In very rare edge cases we could have no valid predictions. So we
     # just create a nonce prediction in this case to avoid failure.
     if not nbest:
@@ -973,11 +978,8 @@ def write_predictions(all_examples, all_features, all_results, n_best_size,
 
     assert len(nbest_json) >= 1
 
-
     all_predictions[example.qas_id] = nbest_json[0]["text"]
     all_nbest_json[example.qas_id] = nbest_json
-
-
 
   with tf.gfile.GFile(output_prediction_file, "w") as writer:
     writer.write(json.dumps(all_predictions, indent=4) + "\n")
@@ -1142,7 +1144,8 @@ class FeatureWriter(object):
     features["segment_ids"] = create_int_feature(feature.segment_ids)
 
     if self.is_training:
-      features["start_positions"] = create_int_feature([feature.start_position])
+      features["start_positions"] = create_int_feature(
+          [feature.start_position])
       features["end_positions"] = create_int_feature([feature.end_position])
       impossible = 0
       if feature.is_impossible:
@@ -1162,7 +1165,8 @@ def validate_flags_or_throw(bert_config):
                                                 FLAGS.init_checkpoint)
 
   if not FLAGS.do_train and not FLAGS.do_predict:
-    raise ValueError("At least one of `do_train` or `do_predict` must be True.")
+    raise ValueError(
+    	"At least one of `do_train` or `do_predict` must be True.")
 
   if FLAGS.do_train:
     if not FLAGS.train_file:
@@ -1229,7 +1233,8 @@ def main(_):
     else:
       distribution = tf.contrib.distribute.MirroredStrategy(
           num_gpus=FLAGS.num_gpus)
-      run_config = tf.estimator.RunConfig(train_distribute=distribution)
+      run_config = tf.estimator.RunConfig(train_distribute=distribution, model_dir=FLAGS.output_dir,
+                                          save_checkpoints_steps=FLAGS.save_checkpoints_steps, session_config=None, keep_checkpoint_max=7)
 
   train_examples = None
   num_train_steps = None
@@ -1245,7 +1250,6 @@ def main(_):
     # buffer in in the `input_fn`.
     rng = random.Random(12345)
     rng.shuffle(train_examples)
-
 
   model_fn = model_fn_builder(
       bert_config=bert_config,
@@ -1273,7 +1277,6 @@ def main(_):
             'batch_size': FLAGS.train_batch_size if FLAGS.do_train else FLAGS.predict_batch_size,
         }
     )
-
 
   if FLAGS.do_train:
     # We write to a temporary file to avoid storing very large constant tensors
@@ -1345,7 +1348,7 @@ def main(_):
     # steps.
     all_results = []
     for result in estimator.predict(
-        predict_input_fn, yield_single_examples=True):
+            predict_input_fn, yield_single_examples=True):
       if len(all_results) % 1000 == 0:
         tf.logging.info("Processing example: %d" % (len(all_results)))
       unique_id = int(result["unique_ids"])
@@ -1358,7 +1361,8 @@ def main(_):
               end_logits=end_logits))
 
     output_prediction_file = os.path.join(FLAGS.output_dir, "predictions.json")
-    output_nbest_file = os.path.join(FLAGS.output_dir, "nbest_predictions.json")
+    output_nbest_file = os.path.join(
+    	FLAGS.output_dir, "nbest_predictions.json")
 
     write_predictions(eval_examples, eval_features, all_results,
                       FLAGS.n_best_size, FLAGS.max_answer_length,
@@ -1371,3 +1375,4 @@ if __name__ == "__main__":
   flags.mark_flag_as_required("bert_config_file")
   flags.mark_flag_as_required("output_dir")
   tf.app.run()
+  f.close()
