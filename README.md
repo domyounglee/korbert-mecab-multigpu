@@ -3,7 +3,7 @@
 ETRI 에서 제공해주신 [한국어 BERT 모델](http://aiopen.etri.re.kr/)을 활용하여 한국어 기계독해(Korquad)를 **Multi GPU 환경**에서 **Tensorflow** 로 학습할 수 있도록 하였습니다.
 (코드는 ETRI에서 제공해주신 pytorch 코드를 보고 변경하였습니다.)
 형태소 분석기는 세종 품사 태그로 바꾼 [Mecab 형태소분석기 API](https://github.com/Gyunstorys/nlp-api) 를 적용하였습니다. 
-Dependency 는 기존 run_squad_morph.py 와 같습니다. (python >=3.5 , tensorflow >=1.14 , urllib3)
+Dependency 는 기존 run_squad_morph.py 와 같습니다. (python >=3.5 , tensorflow >=1.12 , urllib3)
 
 **ETRI 의 [한국어 BERT 모델](http://aiopen.etri.re.kr/)을 활용하시려면 다음의 [링크](http://aiopen.etri.re.kr/service_dataset.php) 에서 서약서를 작성하시고 키를 받으셔서 다운받으시면 됩니다. 
 (사용 허가 협약서를 준수하기 때문에 pretrained 모델을 공개하지 않습니다.**)
