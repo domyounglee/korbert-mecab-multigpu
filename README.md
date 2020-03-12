@@ -12,6 +12,8 @@ Dependency 는 기존 run_squad_morph.py 와 같습니다. (python >=3.5 , tenso
 ### Mecab 형태소 분석기 적용 
 [Mecab 형태소분석기 API](https://github.com/Gyunstorys/nlp-api) 를 적용하였습니다. 
 
+## 변경된 부분 
+
 #### Tokenization 
 Tokenizer는 ETRI 에서 제공해주신 `tokenization_morp.py`를 그대로 활용하였습니다. 
 ```python
