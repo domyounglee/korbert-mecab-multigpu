@@ -298,11 +298,11 @@ def mapping_answer_korquad(p_json, rep_p, answer_text, answer_start, answer_end=
 				if morp['position'] == byte_answer_end:  # "저는 이도명이라고" 에서 '이도명'을 찾을때 이도명 뒤 '이라고 같은게 바로 붙어있을때 
 					end_morp_id = base_morp_id + morp_i - 1
 					break
-				elif morp['position'] < byte_answer_end and morp['position']+len(morp['lemma'].encode()) >= byte_answer_end :
+				elif morp['position'] < byte_answer_end and morp['position']+len(morp['lemma'].encode()) >= byte_answer_end : #딱 실제 정답 byte와  morp['position']+len(morp['lemma'].encode() 가 맞아 떨어질때 
 					end_morp_id = base_morp_id + morp_i
 					break
 				elif morp['position'] < byte_answer_end:
-					end_morp_id = base_morp_id + morp_i
+					end_morp_id = base_morp_id + morp_i#형태소분석 잘못된케이스 
 					logger.info('[end error] %s\t->\t%s' % (answer_text, morp['lemma']))
 					break
 
@@ -318,13 +318,13 @@ def mapping_answer_korquad(p_json, rep_p, answer_text, answer_start, answer_end=
 	  end_pos = rep_p['position_list'][end_morp_id+1]  # 어짜피 end_pos 는 안 들어감
 	pred_text = p_text_bytes[begin_pos: end_pos].decode().strip()
 	if answer_text != pred_text:
-		logger.info('[check morp index] %s\t%s' % (answer_text, pred_text))
+            logger.info('[check morp index] %s\t%s' % (answer_text, pred_text)) #실제 답이랑index찾아서 구한 답이랑 안맞는다:
 
 	return {'begin_morp': begin_morp_id, 'end_morp': end_morp_id, 'text': answer_text}
 
 
 def do_lang(text):
-	openApiURL = "http://10.100.1.121:8080/api/morpheme/etri"
+	openApiURL = "http://10.100.0.76:8080/api/morpheme/etri"
 
 	http = urllib3.PoolManager()
 	response = http.request("POST", openApiURL, fields={'targetText': text})
@@ -381,7 +381,7 @@ def read_squad_examples_and_do_lang(input_file, is_training):
             	p_json, rep_p, qa['answers'][0]['text'], qa['answers'][0]['answer_start'])
             #print(rep_a)
 
-        pqa_list.append({'id': qas_id, 'passage': rep_p,
+        pqa_list.append({'id': qas_id, 'paragraph': rep_p,
                          'question': rep_q, 'answer': rep_a})
 
   return read_squad_examples(pqa_list, is_training)
@@ -399,15 +399,15 @@ def read_squad_examples(pqa_list, is_training):
       a_raw_text = pqa['answer']['text']
       a_begin_morp = pqa['answer']['begin_morp']
       a_end_morp = pqa['answer']['end_morp']
-      a_morp_token = pqa['passage']['morp_list'][a_begin_morp: a_end_morp+1]
+      a_morp_token = pqa['paragraph']['morp_list'][a_begin_morp: a_end_morp+1]
 
     example = SquadExample(
         qas_id=pqa['id'],
         q_raw_text=pqa['question']['text'],
         q_morp_token=pqa['question']['morp_list'],
-        p_raw_text=pqa['passage']['text'],
-        p_morp_token=pqa['passage']['morp_list'],
-        p_morp_position_list=pqa['passage']['position_list'],
+        p_raw_text=pqa['paragraph']['text'],
+        p_morp_token=pqa['paragraph']['morp_list'],
+        p_morp_position_list=pqa['paragraph']['position_list'],
         a_raw_text=a_raw_text,
         a_morp_token=a_morp_token,
         a_begin_morp=a_begin_morp,
