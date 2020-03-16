@@ -25,9 +25,11 @@ urllib3
 **step 2. ETRI_pretrained directory 만들어서 ETRI pretrained model checkpoint 저장합니다.** 
 
 **step 3. shell script path 바꿔줍니다. (docker 사용하면 mount 시킬 volume의 source path 만 바꿔주세요.)**
+
     BERT_BASE_DIR 를 clone 하신 path로 바꿔주세요 
     
 **step 4. 실행합니다.**
+
     ./run_squad_ETRI.sh
 
 ## Korquad Result (dev set)
